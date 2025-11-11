@@ -130,6 +130,63 @@ quarkus.langchain4j.gpu-llama3.chat-model.max-tokens=1024
 
 Model files are automatically downloaded from https://huggingface.co/beehive-lab[Beehive Lab HuggingFace] if not available locally.
 
+== Running the Generated Application
+
+=== Dev Mode
+
+To run your Quarkus application in **dev mode** with TornadoVM:
+
+1. Ensure your `pom.xml` contains the `quarkus-langchain4j-gpu-llama3 dependency`.
+
+2. Configure the TornadoVM argfile in your pom properties:
+
+[source,xml]
+----
+<properties>
+    <tornado.argfile>${env.TORNADOVM_SDK}/../../../tornado-argfile</tornado.argfile>
+</properties>
+----
+
+3. Pass the argfile to the JVM in the `<configuration>` section:
+
+[source,xml]
+----
+<configuration>
+    <!-- Pass Tornado argfile to dev mode -->
+    <jvmArgs>@${tornado.argfile}</jvmArgs>
+</configuration>
+----
+
+4. Launch dev mode:
+
+[source,shell]
+----
+mvn quarkus:dev
+----
+
+Your endpoints (blocking and/or streaming) will now automatically leverage GPULlama3 on GPUs.
+
+=== Production Mode
+
+To build and run your application in **production mode**:
+
+1. Build the Quarkus application:
+
+[source,shell]
+----
+mvn clean package
+----
+
+2. Run the generated jar with the TornadoVM argfile:
+
+[source,shell]
+----
+java @/path/to/tornado-argfile -jar target/quarkus-app/quarkus-run.jar
+----
+
+⚠ **Important:**️ Ensure the environment variables `TORNADOVM_SDK` and the `tornado-argfile` path are correctly set.
+
+
 == Supported Models and Quantizations
 
 The following models have been tested with GPULlama3.java and can be found in link:++https://huggingface.co/beehive-lab/collections[Beehive Lab's HuggingFace Collections].
