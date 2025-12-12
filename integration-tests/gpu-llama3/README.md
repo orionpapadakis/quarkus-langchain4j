@@ -1,27 +1,44 @@
 ### How to run the integrated tests:
 
-#### 1) Install TornadoVM:
+#### 1) Download and Install TornadoVM locally:
+
+*Linux (x86_64)*
 
 ```bash
-cd ~
-git clone git@github.com:beehive-lab/TornadoVM.git
-cd ~/TornadoVM
-./bin/tornadovm-installer --jdk jdk21 --backend opencl
-source setvars.sh
+wget https://github.com/beehive-lab/TornadoVM/releases/download/v2.1.0/tornadovm-2.1.0-opencl-linux-amd64.zip
+unzip tornadovm-2.1.0-opencl-linux-amd64.zip
+# Replace <path-to-sdk> manually with the absolute path of the extracted folder
+export TORNADO_SDK="<path-to-sdk>/tornadovm-2.1.0-opencl"
+export PATH=$TORNADO_SDK/bin:$PATH
+
+tornado --devices
+tornado --version
+```
+
+*macOS (Apple Silicon)*
+
+```bash
+wget https://github.com/beehive-lab/TornadoVM/releases/download/v2.1.0/tornadovm-2.1.0-opencl-mac-aarch64.zip
+unzip tornadovm-2.1.0-opencl-mac-aarch64.zip
+# Replace <path-to-sdk> manually with the absolute path of the extracted folder
+export TORNADO_SDK="<path-to-sdk>/tornadovm-2.1.0-opencl"
+export PATH=$TORNADO_SDK/bin:$PATH
+
+tornado --devices
+tornado --version
 ```
 
 Note that the above steps:
-- Set `TORNADOVM_SDK` environment variable to the path of the TornadoVM SDK.
-- Create the `tornado-argfile` under `~/TornadoVM` which contains all the required JVM arguments to enable TornadoVM.
-- The argfile is automatically used in Quarkus dev mode; however, in production mode, you need to manually pass the argfile to the JVM (see step 3).
+- Set the `TORNADOVM_SDK` environment variable to the TornadoVM SDK path.
+- `TORNADO_SDK` contains the `tornado-argfile` with all the JVM arguments required to enable TornadoVM.
+- ⚠️ The `tornado-argfile` should be used for *building* and *running* the Quarkus application (see section Building & Running the Quarkus Application).
 
 #### 2) Build Quarkus-langchain4j:
 
 ```bash
 cd ~
-git clone git@github.com:mikepapadim/quarkus-langchain4j.git
+git clone git@github.com:quarkiverse/quarkus-langchain4j.git
 cd ~/quarkus-langchain4j
-git checkout gpu-llama3-integration
 mvn clean install -DskipTests
 ```
 
@@ -39,7 +56,7 @@ mvn quarkus:dev
 
 - For *production* mode, run:
 ```bash
-java @~/TornadoVM/tornado-argfile -jar target/quarkus-app/quarkus-run.jar
+java @$TORNADO_SDK/tornado-argfile -jar target/quarkus-app/quarkus-run.jar
 ```
 ##### 3.2 Send requests to the Quarkus app:
 
