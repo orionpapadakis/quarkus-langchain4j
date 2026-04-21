@@ -35,7 +35,7 @@ public class GPULlama3Recorder {
         var gpuLlama3FixedRuntimeConfig = correspondingFixedConfig(configName);
 
         if (gpuLlama3Config.enableIntegration()) {
-            LOG.info("Registering GPULlama3ChatModel CDI Bean for config: " + configName);
+            LOG.debugf("Registering GPULlama3ChatModel CDI Bean for config: %s", configName);
             var chatModelConfig = gpuLlama3Config.chatModel();
 
             var builder = GPULlama3ChatModel.builder()
@@ -74,7 +74,7 @@ public class GPULlama3Recorder {
         var gpuLlama3FixedRuntimeConfig = correspondingFixedConfig(configName);
 
         if (gpuLlama3Config.enableIntegration()) {
-            LOG.info("Registering GPULlama3StreamingChatModel CDI Bean for config: " + configName);
+            LOG.debugf("Registering GPULlama3StreamingChatModel CDI Bean for config: %s", configName);
             var chatModelConfig = gpuLlama3Config.chatModel();
 
             return () -> {

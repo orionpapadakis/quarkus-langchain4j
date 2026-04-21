@@ -69,9 +69,11 @@ public class GPULlama3ChatModel extends GPULlama3BaseModel implements ChatModel 
      */
     private void ensureInitialized() {
         if (!initialized && builderConfig != null) {
-            if (!initialized) {
-                doInitialization(builderConfig);
-                initialized = true;
+            synchronized (this) {
+                if (!initialized) {
+                    doInitialization(builderConfig);
+                    initialized = true;
+                }
             }
         }
     }
@@ -91,15 +93,11 @@ public class GPULlama3ChatModel extends GPULlama3BaseModel implements ChatModel 
             Integer maxTokens = getOrDefault(builder.maxTokens, 512);
             Boolean onGPU = getOrDefault(builder.onGPU, Boolean.TRUE);
 
-            LOG.info("GPULlama3ChatModel Instantiation {modelPath=" + modelPath +
-                    ", temperature=" + temp +
-                    ", topP=" + topP +
-                    ", seed=" + seed +
-                    ", maxTokens=" + maxTokens +
-                    ", onGPU=" + onGPU + "}...");
+            LOG.debugf("GPULlama3ChatModel init: modelPath=%s temperature=%s topP=%s seed=%s maxTokens=%s onGPU=%s",
+                    modelPath, temp, topP, seed, maxTokens, onGPU);
 
             init(modelPath, temp, topP, seed, maxTokens, onGPU);
-            LOG.info("GPULlama3ChatModel Instantiation Complete!");
+            LOG.infof("Model loaded: %s (onGPU=%s)", modelPath.getFileName(), onGPU);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } catch (InterruptedException e) {
@@ -122,14 +120,18 @@ public class GPULlama3ChatModel extends GPULlama3BaseModel implements ChatModel 
         ChatRequestValidationUtils.validate(parameters.toolChoice());
         ChatRequestValidationUtils.validate(parameters.responseFormat());
 
+        boolean hasPriorToolResult = chatRequest.messages().stream()
+                .anyMatch(m -> m.type() == dev.langchain4j.data.message.ChatMessageType.TOOL_EXECUTION_RESULT);
+
         try {
             // Generate a raw response from the model
             String rawResponse = modelResponse(chatRequest, null);
 
             // Use extractAllToolCalls to handle batched tool calls (matches ToolCallingSession)
             List<ToolCallExtract> toolCalls = chatFormat.extractAllToolCalls(rawResponse);
-            System.err.println("[GPU-DEBUG] extractAllToolCalls result: " + toolCalls.size() + " call(s)");
+            LOG.debugf("extractAllToolCalls result: %d call(s)", toolCalls.size());
             if (!toolCalls.isEmpty()) {
+                LOG.infof("[LLM → tool call]\n%s", rawResponse.strip());
                 List<ToolExecutionRequest> toolReqs = new ArrayList<>();
                 for (ToolCallExtract tc : toolCalls) {
                     LOG.infof("[Tool call]  → %s(%s)", tc.name(),
@@ -147,6 +149,8 @@ public class GPULlama3ChatModel extends GPULlama3BaseModel implements ChatModel 
 
             // Plain text response — separate thinking content if present
             GPULlama3ResponseParser.ParsedResponse parsed = GPULlama3ResponseParser.parseResponse(rawResponse);
+
+            LOG.infof("[LLM response]\n%s", parsed.getActualResponse());
 
             return ChatResponse.builder()
                     .aiMessage(AiMessage.builder()
