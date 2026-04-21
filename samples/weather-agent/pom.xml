@@ -18,7 +18,7 @@
     <quarkus.platform.version>3.27.2</quarkus.platform.version>
     <skipITs>true</skipITs>
     <surefire-plugin.version>3.2.5</surefire-plugin.version>
-    <quarkus-langchain4j.version>1.8.2</quarkus-langchain4j.version>
+    <quarkus-langchain4j.version>999-SNAPSHOT</quarkus-langchain4j.version>
   </properties>
 
     <dependencyManagement>
@@ -38,10 +38,24 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest-jackson</artifactId>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>io.quarkiverse.langchain4j</groupId>-->
+<!--            <artifactId>quarkus-langchain4j-openai</artifactId>-->
+<!--            <version>${quarkus-langchain4j.version}</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>io.quarkiverse.langchain4j</groupId>
-            <artifactId>quarkus-langchain4j-openai</artifactId>
+            <artifactId>quarkus-langchain4j-gpu-llama3</artifactId>
             <version>${quarkus-langchain4j.version}</version>
+        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>io.quarkiverse.langchain4j</groupId>-->
+<!--            <artifactId>quarkus-langchain4j-ollama</artifactId>-->
+<!--            <version>${quarkus-langchain4j.version}</version>-->
+<!--        </dependency>-->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-client-jackson</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -69,6 +83,9 @@
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>quarkus-maven-plugin</artifactId>
                 <version>${quarkus.platform.version}</version>
+                <configuration>
+                    <jvmArgs>@${env.TORNADOVM_HOME}/tornado-argfile</jvmArgs>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
