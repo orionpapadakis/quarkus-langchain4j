@@ -43,6 +43,12 @@ abstract class GPULlama3BaseModel {
     private State state;
     private TornadoVMMasterPlan tornadoVMPlan;
 
+    // Default configurations
+    // overridden by defineDefaultConfigForModel()
+    protected double defaultTemperature = 0.7;
+    protected double defaultTopP = 0.9;
+    protected int defaultMaxTokens = 2048;
+
     // @formatter:off
     public void init(
             Path modelPath,
@@ -277,6 +283,25 @@ abstract class GPULlama3BaseModel {
 
         // Prime the model to start generating an assistant response
         promptTokens.addAll(chatFormat.encodeHeader(new ChatFormat.Message(ChatFormat.Role.ASSISTANT, "")));
+    }
+
+    /**
+     * Sets format-aware defaults for temperature, top-p, and max-tokens based on the model name.
+     * Called before {@link #init} so that {@code doInitialization} in each subclass can use
+     * {@link #defaultTemperature}, {@link #defaultTopP}, and {@link #defaultMaxTokens} as
+     * fallbacks when the user has not explicitly configured those values.
+     */
+    protected void defineDefaultConfigForModel(String modelName) {
+        String n = modelName != null ? modelName.toLowerCase() : "";
+        if (n.contains("qwen")) {
+            defaultTemperature = 0.8;
+            defaultTopP = 0.9;
+        } else if (n.contains("llama")) {
+            defaultTemperature = 0.3;
+            defaultTopP = 0.95;
+        }
+        // other model families: keep base defaults (0.7 / 0.9)
+        // defaultMaxTokens is 2048 for all families
     }
 
     private static final String CALL_ID_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";

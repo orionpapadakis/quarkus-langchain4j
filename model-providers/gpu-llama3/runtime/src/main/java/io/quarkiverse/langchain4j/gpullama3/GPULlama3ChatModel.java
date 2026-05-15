@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.beehive.gpullama3.model.format.ToolCallExtract;
 import org.jboss.logging.Logger;
@@ -87,10 +88,11 @@ public class GPULlama3ChatModel extends GPULlama3BaseModel implements ChatModel 
         try {
             Path modelPath = gpuLlama3ModelRegistry.downloadModel(builder.modelName, builder.quantization,
                     Optional.empty(), Optional.empty());
-            Double temp = getOrDefault(builder.temperature, 0.1);
-            Double topP = getOrDefault(builder.topP, 1.0);
-            Integer seed = getOrDefault(builder.seed, 12345);
-            Integer maxTokens = getOrDefault(builder.maxTokens, 512);
+            defineDefaultConfigForModel(builder.modelName);
+            Double temp = getOrDefault(builder.temperature, defaultTemperature);
+            Double topP = getOrDefault(builder.topP, defaultTopP);
+            Integer seed = getOrDefault(builder.seed, ThreadLocalRandom.current().nextInt());
+            Integer maxTokens = getOrDefault(builder.maxTokens, defaultMaxTokens);
             Boolean onGPU = getOrDefault(builder.onGPU, Boolean.TRUE);
 
             LOG.debugf("GPULlama3ChatModel init: modelPath=%s temperature=%s topP=%s seed=%s maxTokens=%s onGPU=%s",
