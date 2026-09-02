@@ -3,11 +3,9 @@ package io.quarkiverse.langchain4j.gpullama3;
 import static io.quarkiverse.langchain4j.runtime.VertxUtil.runOutEventLoop;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import org.beehive.gpullama3.model.format.ToolCallExtract;
 import org.jboss.logging.Logger;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
@@ -18,7 +16,6 @@ import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
-import dev.langchain4j.model.output.FinishReason;
 
 /**
  * GPULlama3StreamingChatModel is a specialized implementation of the {@link StreamingChatModel} for Quarkus-Langchain4j
@@ -90,39 +87,33 @@ public class GPULlama3StreamingChatModel extends GPULlama3BaseModel implements S
             // The StreamingParser detects and buffers tool-call JSON in real time (<tool_call> and
             // <|python_tag|> markers), so streaming is never suppressed — plain-text responses
             // stream token-by-token even when tool specifications are registered.
-            GPULlama3ResponseParser.StreamingParser parser = GPULlama3ResponseParser.createStreamingParser(handler, getModel());
+            GPULlama3ResponseParser.StreamingParser parser = GPULlama3ResponseParser.createStreamingParser(handler);
 
-            String rawResponse = modelResponse(chatRequest, parser::onToken);
+            // One ordered event per emitted completion token, carrying the id and the text it
+            // completed. The parser needs only the text; the ids are there for consumers that do.
+            org.beehive.gpullama3.api.GenerationResult result = modelResponse(chatRequest, parser::onEvent);
+            String rawResponse = result.text();
+            parser.finish();
 
-            // Finalize parser: resolves any unclosed <|python_tag|> tool call (LLaMA 3.1)
-            List<ToolCallExtract> toolCalls = parser.finish();
-
-            // Check for tool calls
-            // Fallback for models that emit raw JSON without <tool_call> tags (rare)
-            if (toolCalls.isEmpty()) {
-                toolCalls = holder.chatFormat.extractAllToolCalls(rawResponse);
-            }
+            // The engine's calls are the authoritative list: it validated them, and it reports
+            // them only when generation ended through the format's tool-call termination path.
+            List<org.beehive.gpullama3.api.ChatContent.ToolCall> toolCalls = result.toolCalls();
             if (!toolCalls.isEmpty()) {
                 LOG.infof("[LLM → tool call]\n%s", rawResponse.strip());
                 String thinkingContent = parser.getThinkingContent();
                 LOG.debugf("[Parsed tool turn] toolCalls=%d  thinking=>>>%s<<<", toolCalls.size(), thinkingContent);
-                List<ToolExecutionRequest> toolReqs = new ArrayList<>();
-                for (ToolCallExtract tc : toolCalls) {
-                    String callId = tc.id().orElseGet(() -> generateCallId());
-                    LOG.infof("[Tool call] → %s(%s)", tc.name(),
-                            tc.argumentsJson().replace("\n", "").replaceAll("\\s+", " "));
-                    toolReqs.add(ToolExecutionRequest.builder()
-                            .id(callId)
-                            .name(tc.name())
-                            .arguments(tc.argumentsJson())
-                            .build());
+                List<ToolExecutionRequest> toolReqs = GPULlama3Conversions.toToolExecutionRequests(toolCalls);
+                for (ToolExecutionRequest req : toolReqs) {
+                    LOG.infof("[Tool call] → %s(%s)", req.name(),
+                            req.arguments().replace("\n", "").replaceAll("\\s+", " "));
                 }
                 handler.onCompleteResponse(ChatResponse.builder()
                         .aiMessage(AiMessage.builder()
                                 .thinking(thinkingContent)
                                 .toolExecutionRequests(toolReqs)
                                 .build())
-                        .finishReason(FinishReason.TOOL_EXECUTION)
+                        .finishReason(GPULlama3Conversions.toLangChain4jFinishReason(
+                                result.finishReason()))
                         .build());
                 return;
             }
