@@ -65,22 +65,28 @@ The conversions use plain Jackson rather than `dev.langchain4j.internal.Json`, w
 Quarkus's codec factory and needs the CDI container — a conversion that cannot be tested without
 booting Quarkus is not a pure function.
 
-## Known: the default `prefill-decode=true` configuration does not work, on either path
+## Batched prefill: default-off, and the engine gap that made it fail
 
-With the extension's published default (`prefill-decode=true`, `prefill-batch-size=32`) the sample
-app returns HTTP 500 **before and after** this migration, on this machine and fixture:
+The extension used to default `prefill-decode=true` with `prefill-batch-size=32`, so every
+deployment ran batched prefill without asking for it. It is now `prefill-decode=false` and
+`prefill-batch-size=1`. Batched prefill is default-off in the engine on every backend, and
+turning it on is an opt-in that needs its own performance evidence for the model and device.
 
-| Configuration | Legacy extension | Migrated extension |
-| --- | --- | --- |
-| `prefill-decode=true` (default) | `TornadoOutOfMemoryException: Unable to allocate 525336592 bytes` | `TornadoRuntimeException: null object passed into streamIn() in schedule prefillActivation` |
-| `prefill-decode=false` | works | works (blocking **and** streaming) |
+Enabling it used to fail with `TornadoRuntimeException: null object passed into streamIn() in
+schedule prefillActivation`. The batch arrays are sized when the state is allocated, from
+`llama.prefillBatchSize`; the facade supplies the width as an `ExecutionPolicy` on
+`ModelOptions`, which is resolved after allocation. So the batched plan was built against a
+state that had no batch arrays. The engine now scopes the width around state construction,
+and gates it with `BatchedPrefillPolicyAccelTest`.
 
-**Both fail; they fail differently, and the difference is explained.** The legacy path set
-`llama.prefillBatchSize` as a JVM-global property before the model loaded, which sized the state's
-batch arrays; the façade takes an `ExecutionPolicy` on `ModelOptions`, and the session's state is
-created with no batch size — so the batched plan is built against a state that has no batch arrays
-and fails earlier, at plan construction, instead of later, at device allocation.
+Verified after both changes, on CUDA with TornadoVM 6.0.0 and JDK 25:
+`chat-demo` and `streaming-demo` run to completion with the defaults, and `tool-demo-ls`
+runs with `prefill-decode=true` and `prefill-batch-size=32` explicitly set, emitting a tool
+call, executing it and returning.
 
-That is an **engine gap**, recorded rather than worked around: batched prefill is
-[DEF-01](https://github.com/beehive-lab/GPULlama3.java) territory — unverified, not enabled by
-default, and its bounds are not to be widened to make a test pass.
+## The backend is the SDK's to choose
+
+`GPULlama3ModelHolder` named `BackendId.CUDA` whenever `onGPU` was true. The engine rejects an
+explicit backend that disagrees with the device it resolves — deliberately, rather than
+silently running on a different one — so the extension could not start on an OpenCL or Metal
+SDK. It now sets `use.tornadovm` and names no backend, leaving the choice to the installed SDK.

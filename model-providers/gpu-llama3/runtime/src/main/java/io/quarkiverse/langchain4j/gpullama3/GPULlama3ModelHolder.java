@@ -135,8 +135,16 @@ public class GPULlama3ModelHolder implements AutoCloseable {
                     + ", deviceMemory=" + deviceMemory + "}...");
 
             ModelOptions.Builder options = ModelOptions.builder()
-                    .contextLength(maxTokens)
-                    .backend(onGPU ? BackendId.CUDA : BackendId.CPU);
+                    .contextLength(maxTokens);
+            if (onGPU) {
+                // No backend is named: the engine resolves whichever one the installed
+                // TornadoVM SDK provides. Naming CUDA here made the extension refuse to start
+                // on an OpenCL or Metal SDK, since an explicit backend that disagrees with the
+                // resolved device is rejected rather than silently substituted.
+                System.setProperty("use.tornadovm", "true");
+            } else {
+                options.backend(BackendId.CPU);
+            }
             if (withPrefillDecode) {
                 options.executionPolicy(ExecutionPolicy.builder()
                         .phaseStrategy(ExecutionPolicy.PhaseStrategy.PREFILL_DECODE)
